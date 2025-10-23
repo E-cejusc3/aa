@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <title>Plataforma de Conciliação - TJDFT</title>
+    <!-- Carrega o Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Importa a fonte 'Inter' -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Esconde os 'number spinners' em inputs de número */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- Container Principal da Aplicação -->
+    <div id="app-container" class="p-4 md:p-8 max-w-7xl mx-auto">
+
+        <!-- 1. ESTADO DE CARREGAMENTO -->
+        <div id="loading-state" class="flex flex-col items-center justify-center min-h-[80vh]">
+            <img src="tjdft-3.png" alt="Logo TJDFT" class="h-12 mx-auto mb-8 animate-pulse"
+                 onerror="this.onerror=null; this.src='https://placehold.co/200x50/003366/FFFFFF?text=TJDFT';">
+            <p class="text-lg text-gray-700">Carregando plataforma...</p>
+        </div>
+
+        <!-- 2. ESTADO DE AUTENTICAÇÃO (Login / Registro) -->
+        <div id="auth-state" class="hidden">
+            <div class="max-w-md mx-auto bg-white rounded-xl shadow-2xl p-8 mt-10">
+                <!-- Logo Audiências -->
+                <img src="logocplt.jpg" alt="Logo Audiências Assíncronas" class="w-full rounded-lg mb-8"
+                     onerror="this.onerror=null; this.src='https://placehold.co/600x300/f0f0f0/333333?text=Audi%C3%AAncias+Ass%C3%ADncronas';">
+                
+                <!-- Abas (Tabs) -->
+                <div class="mb-6 border-b border-gray-200">
+                    <nav class="flex -mb-px">
+                        <button id="tab-login" class="w-1/2 py-4 px-1 text-center border-b-2 border-blue-600 font-bold text-blue-600">
+                            Entrar
+                        </button>
+                        <button id="tab-signup" class="w-1/2 py-4 px-1 text-center border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            Registrar
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Formulário de Login -->
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label for="login-email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input type="email" id="login-email" required class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="mb-6">
+                        <label for="login-password" class="block text-sm font-medium text-gray-700 mb-2">Senha</label>
+                        <input type="password" id="login-password" required class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <p id="login-error" class="text-red-600 text-sm mb-4"></p>
+                    <button id="login-button" type="submit" class="w-full bg-blue-700 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-800 transition duration-300 shadow-lg">
+                        Entrar
+                    </button>
+                </form>
+
+                <!-- Formulário de Registro -->
+                <form id="signup-form" class="hidden">
+                    <div class="mb-4">
+                        <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input type="email" id="signup-email" required class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="mb-4">
+                        <label for="signup-password" class="block text-sm font-medium text-gray-700 mb-2">Senha</Tabel>
+                        <input type="password" id="signup-password" required class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="mb-6">
+                        <label for="signup-password-confirm" class="block text-sm font-medium text-gray-700 mb-2">Confirmar Senha</Tabel>
+                        <input type="password" id="signup-password-confirm" required class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <p id="signup-error" class="text-red-600 text-sm mb-4"></p>
+                    <button id="signup-button" type="submit" class="w-full bg-gray-700 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-800 transition duration-300 shadow-lg">
+                        Registrar
+                    </button>
+                </form>
+
+            </div>
+        </div>
+
+        <!-- 3. ESTADO DE PAINEL (Dashboard) -->
+        <div id="dashboard-state" class="hidden">
+            
+            <!-- Cabeçalho do Painel -->
+            <header class="flex flex-col md:flex-row justify-between items-center mb-8 pb-4 border-b border-gray-300">
+                <div class="flex items-center">
+                    <img src="tjdft-3.png" alt="Logo TJDFT" class="h-10"
+                         onerror="this.onerror=null; this.src='https://placehold.co/150x40/003366/FFFFFF?text=TJDFT';">
+                    <h1 class="text-2xl font-bold text-gray-800 ml-4">Minha Plataforma de Conciliação</h1>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <!-- Info do Usuário (EXIBE EMAIL) -->
+                    <div class="text-sm text-gray-600 text-center md:text-right mb-2">
+                        Logado como:<br>
+                        <strong id="user-email" class="text-gray-900">...</strong>
+                    </div>
+                    <button id="logout-button" class="w-full md:w-auto bg-red-600 text-white font-medium py-2 px-5 rounded-lg hover:bg-red-700 transition duration-300">
+                        Sair
+                    </button>
+                </div>
+            </header>
+
+            <!-- Corpo do Painel (2 Colunas) -->
+            <!-- **** CORREÇÃO AQUI: Adicionado 'md:items-start' **** -->
+            <div class="flex flex-col md:flex-row md:space-x-8 md:items-start">
+
+                <!-- Coluna 1: Minhas Demandas (Recebidas e Iniciadas) -->
+                <div class="w-full md:w-1/2 bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-bold text-gray-900 mb-5">Minhas Demandas</h2>
+                    <div id="minhas-demandas-list" class="space-y-4 max-h-96 overflow-y-auto">
+                        <!-- Demandas serão inseridas aqui pelo JS -->
+                        <p id="no-demandas-msg" class="text-gray-500">Você não possui demandas ativas.</p>
+                    </div>
+                </div>
+
+                <!-- Coluna 2: Iniciar Nova Demanda (COLAPSÁVEL) -->
+                <div class="w-full md:w-1/2 bg-white rounded-xl shadow-lg mt-8 md:mt-0">
+                    <!-- Cabeçalho Clicável -->
+                    <div id="toggle-new-demanda" class="flex justify-between items-center p-6 cursor-pointer group">
+                        <h2 class="text-xl font-bold text-gray-900 group-hover:text-blue-700">Iniciar Nova Demanda</h2>
+                        <!-- Ícone de alternância -->
+                        <span id="new-demanda-icon" class="text-2xl font-bold text-gray-600 group-hover:text-blue-700">[+]</span>
+                    </div>
+                    
+                    <!-- Conteúdo Colapsável (usa style="display: none;" aplicado via JS diff) -->
+                    <div id="new-demanda-content" class="px-6 pb-6" style="display: none;">
+                        <form id="new-demanda-form" class="space-y-4">
+                            <div>
+                                <label for="new-demanda-email" class="block text-sm font-medium text-gray-700 mb-2">Email da Outra Parte</label>
+                                <input type="email" id="new-demanda-email" required placeholder="email@exemplo.com" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                             <div>
+                                <label for="new-demanda-assunto" class="block text-sm font-medium text-gray-700 mb-2">Assunto</label>
+                                <input type="text" id="new-demanda-assunto" required placeholder="Ex: Dívida de Aluguel" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label for="new-demanda-descricao" class="block text-sm font-medium text-gray-700 mb-2">Descrição Inicial</label>
+                                <textarea id="new-demanda-descricao" rows="4" required placeholder="Descreva brevemente o motivo da conciliação." class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                            </div>
+                            <p id="new-demanda-message" class="text-sm"></p>
+                            <button id="new-demanda-button" type="submit" class="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition duration-300 shadow-lg">
+                                Abrir Demanda
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div> <!-- Fim #app-container -->
+
+
+    <!-- Scripts do Firebase -->
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword, 
+            createUserWithEmailAndPassword, 
+            onAuthStateChanged, 
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // Importações do REALTIME DATABASE
+        import {
+            getDatabase,
+            ref,
+            set,
+            get,
+            push,
+            onValue,
+            query,
+            orderByChild,
+            equalTo,
+            serverTimestamp,
+            off // Para desligar os listeners
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+
+        // --- INICIALIZAÇÃO E VARIÁVEIS GLOBAIS ---
+        
+        // Configurações do Firebase fornecidas pelo usuário
+        const firebaseConfig = {
+            apiKey: "AIzaSyDq-zz_7BLj0VTK0vXS955tBadC4sj9rFg",
+            authDomain: "audasync.firebaseapp.com",
+            databaseURL: "https://audasync-default-rtdb.firebaseio.com",
+            projectId: "audasync",
+            storageBucket: "audasync.firebasestorage.app",
+            messagingSenderId: "522678342385",
+            appId: "1:522678342385:web:1433bd9cc1aaaa14a40f50",
+            measurementId: "G-B15ZRTTR5T"
+        };
+
+        // Inicializa Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app); 
+        const auth = getAuth(app);
+        
+        // Define um caminho base fixo para os dados (baseado no projectId)
+        const dbBasePath = `artifacts/audasync/public/data`;
+
+        let currentUserId = null;
+        let currentUserEmail = null;
+        
+        // Variáveis para os listeners e caches
+        let unsubDemandasRecebidas = null;
+        let unsubDemandasIniciadas = null;
+        let demandasRecebidasCache = {};
+        let demandasIniciadasCache = {};
+
+        // Referências dos Elementos da UI
+        const loadingState = document.getElementById('loading-state');
+        const authState = document.getElementById('auth-state');
+        const dashboardState = document.getElementById('dashboard-state');
+
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const signupForm = document.getElementById('signup-form');
+        const signupError = document.getElementById('signup-error');
+        
+        const tabLogin = document.getElementById('tab-login');
+        const tabSignup = document.getElementById('tab-signup');
+        
+        // ID do display do usuário atualizado
+        const userEmailDisplay = document.getElementById('user-email');
+        const logoutButton = document.getElementById('logout-button');
+
+        const minhasDemandasList = document.getElementById('minhas-demandas-list');
+        const noDemandasMsg = document.getElementById('no-demandas-msg');
+
+        const newDemandaForm = document.getElementById('new-demanda-form');
+        const newDemandaEmail = document.getElementById('new-demanda-email');
+        const newDemandaAssunto = document.getElementById('new-demanda-assunto');
+        const newDemandaDescricao = document.getElementById('new-demanda-descricao');
+        const newDemandaMessage = document.getElementById('new-demanda-message');
+        const newDemandaButton = document.getElementById('new-demanda-button');
+
+        // Referências para o painel colapsável
+        const toggleNewDemanda = document.getElementById('toggle-new-demanda');
+        const newDemandaContent = document.getElementById('new-demanda-content');
+        const newDemandaIcon = document.getElementById('new-demanda-icon');
+
+
+        // --- CONTROLE DE ESTADO DA UI ---
+
+        function showState(stateName) {
+            loadingState.classList.toggle('hidden', stateName !== 'loading');
+            authState.classList.toggle('hidden', stateName !== 'auth');
+            dashboardState.classList.toggle('hidden', stateName !== 'dashboard');
+        }
+        
+        function showAuthTab(tabName) {
+            loginForm.classList.toggle('hidden', tabName !== 'login');
+            signupForm.classList.toggle('hidden', tabName !== 'signup');
+
+            tabLogin.classList.toggle('border-blue-600', tabName === 'login');
+            tabLogin.classList.toggle('font-bold', tabName === 'login');
+            tabLogin.classList.toggle('text-blue-600', tabName === 'login');
+            tabLogin.classList.toggle('border-transparent', tabName !== 'login');
+            tabLogin.classList.toggle('text-gray-500', tabName !== 'login');
+
+            tabSignup.classList.toggle('border-blue-600', tabName === 'signup');
+            tabSignup.classList.toggle('font-bold', tabName === 'signup');
+            tabSignup.classList.toggle('text-blue-600', tabName === 'signup');
+            tabSignup.classList.toggle('border-transparent', tabName !== 'signup');
+            tabSignup.classList.toggle('text-gray-500', tabName !== 'signup');
+        }
+
+        function encodeEmailForKey(email) {
+            return email.replace(/\./g, '_dot_').replace(/@/g, '_at_').replace(/[\$\#\[\]\/\.]/g, '_');
+        }
+
+        // --- AUTENTICAÇÃO ---
+
+        // Mostra o loading state no início
+        showState('loading');
+        
+        // onAuthStateChanged é o principal controlador de estado
+        onAuthStateChanged(auth, (user) => {
+            // Limpa listeners antigos ANTES de qualquer outra coisa
+            if (unsubDemandasRecebidas) {
+                off(unsubDemandasRecebidas.query, 'value', unsubDemandasRecebidas.callback);
+                unsubDemandasRecebidas = null;
+            }
+            if (unsubDemandasIniciadas) {
+                off(unsubDemandasIniciadas.query, 'value', unsubDemandasIniciadas.callback);
+                unsubDemandasIniciadas = null;
+            }
+            // Limpa os caches
+            demandasRecebidasCache = {};
+            demandasIniciadasCache = {};
+
+            // Usuário está logado
+            if (user) {
+                currentUserId = user.uid;
+                currentUserEmail = user.email;
+                
+                // Atualiza o cabeçalho com o EMAIL
+                userEmailDisplay.textContent = currentUserEmail;
+                
+                // Carrega os dados do usuário
+                loadMinhasDemandas(currentUserId);
+                
+                showState('dashboard');
+            } 
+            // Usuário está deslogado
+            else {
+                currentUserId = null;
+                currentUserEmail = null;
+                
+                if(minhasDemandasList) minhasDemandasList.innerHTML = ''; // Limpa a lista ao deslogar
+                if(noDemandasMsg) noDemandasMsg.classList.remove('hidden');
+                
+                showState('auth');
+                showAuthTab('login');
+            }
+        });
+
+        // Event Listeners das Abas
+        tabLogin.addEventListener('click', () => showAuthTab('login'));
+        tabSignup.addEventListener('click', () => showAuthTab('signup'));
+
+        // Event Listener de Login
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            loginError.textContent = '';
+            showState('loading'); // Mostra loading durante a tentativa
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // onAuthStateChanged vai cuidar de redirecionar
+            } catch (error) {
+                console.error("Erro de login:", error.code);
+                loginError.textContent = getAuthErrorMessage(error.code);
+                showState('auth'); // Volta para a tela de auth em caso de erro
+                showAuthTab('login');
+            }
+        });
+
+        // Event Listener de Registro
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const confirm = document.getElementById('signup-password-confirm').value;
+            signupError.textContent = '';
+
+            if (password !== confirm) {
+                signupError.textContent = 'As senhas não conferem.';
+                return;
+            }
+            
+            showState('loading'); // Mostra loading durante o registro
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                // Salva o email no diretório de usuários
+                const encodedEmail = encodeEmailForKey(user.email);
+                const userDirectoryRef = ref(db, `${dbBasePath}/user_directory/${encodedEmail}`);
+                await set(userDirectoryRef, { uid: user.uid });
+                
+                // onAuthStateChanged vai cuidar de redirecionar
+
+            } catch (error) {
+                console.error("Erro de registro:", error.code);
+                signupError.textContent = getAuthErrorMessage(error.code);
+                showState('auth'); // Volta para a tela de auth em caso de erro
+                showAuthTab('signup');
+            }
+        });
+
+        // Event Listener de Logout
+        logoutButton.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                // onAuthStateChanged vai cuidar de redirecionar
+            } catch (error) {
+                console.error("Erro no logout:", error);
+            }
+        });
+
+        function getAuthErrorMessage(code) {
+            switch (code) {
+                case 'auth/invalid-email':
+                    return 'Formato de email inválido.';
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                case 'auth/invalid-credential':
+                    return 'Email ou senha incorretos.';
+                case 'auth/email-already-in-use':
+                    return 'Este email já está em uso.';
+                case 'auth/weak-password':
+                    return 'A senha deve ter pelo menos 6 caracteres.';
+                default:
+                    return 'Ocorreu um erro. Tente novamente.';
+            }
+        }
+
+        // --- LÓGICA DO PAINEL COLAPSÁVEL ---
+        // Lógica atualizada para usar style.display
+        toggleNewDemanda.addEventListener('click', () => {
+            const isHidden = newDemandaContent.style.display === 'none';
+            if (isHidden) {
+                newDemandaContent.style.display = 'block';
+                newDemandaIcon.textContent = '[-]';
+            } else {
+                newDemandaContent.style.display = 'none';
+                newDemandaIcon.textContent = '[+]';
+            }
+        });
+
+
+        // --- REALTIME DATABASE (Lógica do Painel) ---
+
+        function loadMinhasDemandas(userId) {
+            const demandasRef = ref(db, `${dbBasePath}/demandas`);
+
+            // 1. Listener para Demandas RECEBIDAS (onde sou o réu)
+            const qRecebidas = query(demandasRef, orderByChild("reuId"), equalTo(userId));
+            const callbackRecebidas = onValue(qRecebidas, (snapshot) => {
+                demandasRecebidasCache = snapshot.val() || {};
+                renderListaUnificada();
+            }, (error) => {
+                console.error("Erro ao buscar demandas recebidas:", error);
+                if(minhasDemandasList) minhasDemandasList.innerHTML = '<p class="text-red-500">Erro ao carregar demandas. Verifique o índice "reuId" nas Regras do RTDB.</p>';
+            });
+            unsubDemandasRecebidas = { query: qRecebidas, callback: callbackRecebidas };
+
+            // 2. Listener para Demandas INICIADAS (onde sou o autor)
+            const qIniciadas = query(demandasRef, orderByChild("autorId"), equalTo(userId));
+            const callbackIniciadas = onValue(qIniciadas, (snapshot) => {
+                demandasIniciadasCache = snapshot.val() || {};
+                renderListaUnificada();
+            }, (error) => {
+                console.error("Erro ao buscar demandas iniciadas:", error);
+                if(minhasDemandasList) minhasDemandasList.innerHTML = '<p class="text-red-500">Erro ao carregar demandas. Verifique o índice "autorId" nas Regras do RTDB.</p>';
+            });
+            unsubDemandasIniciadas = { query: qIniciadas, callback: callbackIniciadas };
+        }
+
+        function renderListaUnificada() {
+            if(!minhasDemandasList) return; // Proteção caso o elemento não exista
+            
+            minhasDemandasList.innerHTML = '';
+            
+            const todasDemandasMap = { ...demandasRecebidasCache, ...demandasIniciadasCache };
+            
+            const todasDemandasArray = Object.entries(todasDemandasMap).map(([id, data]) => ({
+                id: id,
+                ...data
+            }));
+
+            todasDemandasArray.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+            if (todasDemandasArray.length === 0) {
+                noDemandasMsg.classList.remove('hidden');
+            } else {
+                noDemandasMsg.classList.add('hidden');
+                todasDemandasArray.forEach(demanda => {
+                    renderDemandaCard(demanda, demanda.id);
+                });
+            }
+        }
+
+        function renderDemandaCard(demanda, demandaId) {
+            const card = document.createElement('div');
+            card.className = 'border border-gray-200 p-4 rounded-lg shadow-sm';
+            
+            const chatUrl = `chat.html?id=${demandaId}`; 
+            const isAutor = (demanda.autorId === currentUserId);
+            const papelLabel = isAutor ? 'Iniciada por mim' : 'Recebida';
+            const papelClasse = isAutor ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800';
+            const outraParteLabel = isAutor ? 'Contra:' : 'De:';
+            const outraParteEmail = isAutor ? demanda.reuEmail : demanda.autorEmail;
+
+            let dataFormatada = 'Data não disponível';
+            if (demanda.createdAt) {
+                dataFormatada = new Date(demanda.createdAt).toLocaleString('pt-BR');
+            }
+
+            card.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-bold text-lg text-gray-800">${demanda.assunto}</h3>
+                        <p class="text-sm text-gray-600">${outraParteLabel} ${outraParteEmail}</p>
+                        <p class="text-xs text-gray-400 mt-1">Criada em: ${dataFormatada}</p>
+                        
+                        <div class="flex items-center space-x-3 mt-2">
+                             <p class="text-sm text-gray-500">Status: 
+                                <span class="font-medium ${demanda.status === 'Aberta' ? 'text-yellow-600' : 'text-green-600'}">
+                                    ${demanda.status}
+                                </span>
+                            </p>
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full ${papelClasse}">
+                                ${papelLabel}
+                            </span>
+                        </div>
+                    </div>
+                    <a href="${chatUrl}" class="bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300">
+                        Acessar Chat
+                    </a>
+                </div>
+            `;
+            minhasDemandasList.appendChild(card);
+        }
+
+        // Event Listener de Criar Nova Demanda
+        newDemandaForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const emailReu = newDemandaEmail.value;
+            const assunto = newDemandaAssunto.value;
+            const descricao = newDemandaDescricao.value;
+
+            if (emailReu === currentUserEmail) {
+                newDemandaMessage.textContent = 'Você não pode abrir uma demanda contra si mesmo.';
+                newDemandaMessage.className = 'text-red-600 text-sm';
+                return;
+            }
+
+            newDemandaButton.disabled = true;
+            newDemandaButton.textContent = 'Abrindo...';
+            newDemandaMessage.textContent = '';
+            newDemandaMessage.className = 'text-sm';
+
+            try {
+                // Passo 1: Encontrar o UID da outra parte (o "réu")
+                const encodedEmailReu = encodeEmailForKey(emailReu);
+                const userDirectoryRef = ref(db, `${dbBasePath}/user_directory/${encodedEmailReu}`);
+                const userSnapshot = await get(userDirectoryRef);
+
+                if (!userSnapshot.exists()) {
+                    throw new Error('Usuário (réu) não encontrado com este email.');
+                }
+                
+                const reuId = userSnapshot.val().uid;
+
+                // Passo 2: Criar o documento da demanda
+                const demandasRef = ref(db, `${dbBasePath}/demandas`);
+                const newDemandaRef = push(demandasRef); 
+                
+                const novaDemanda = {
+                    autorId: currentUserId,
+                    autorEmail: currentUserEmail,
+                    reuId: reuId,
+                    reuEmail: emailReu,
+                    assunto: assunto,
+                    descricaoInicial: descricao,
+                    status: "Aberta",
+                    createdAt: serverTimestamp() 
+                };
+
+                await set(newDemandaRef, novaDemanda);
+                
+                newDemandaMessage.textContent = 'Demanda aberta com sucesso!';
+                newDemandaMessage.className = 'text-green-600 text-sm';
+                newDemandaForm.reset();
+                
+                // Fecha o painel após o sucesso (usando style.display)
+                newDemandaContent.style.display = 'none';
+                newDemandaIcon.textContent = '[+]';
+
+
+            } catch (error) {
+                console.error("Erro ao criar demanda:", error);
+                newDemandaMessage.textContent = error.message || 'Erro ao abrir demanda.';
+                newDemandaMessage.className = 'text-red-600 text-sm';
+            } finally {
+                newDemandaButton.disabled = false;
+                newDemandaButton.textContent = 'Abrir Demanda';
+            }
+        });
+        
+        // A aplicação agora é iniciada pelo 'onAuthStateChanged'
+        // A chamada 'initializeAuth()' foi removida.
+
+    </script>
+</body>
+</html>
+
