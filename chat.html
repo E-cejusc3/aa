@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat de Conciliação - TJDFT</title>
+    <!-- Carrega o Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Importa a fonte 'Inter' -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- Container Principal da Aplicação -->
+    <div id="app-container" class="p-4 md:p-8 max-w-4xl mx-auto">
+
+        <!-- 1. ESTADO DE CARREGAMENTO -->
+        <div id="loading-state" class="flex flex-col items-center justify-center min-h-[80vh]">
+            <img src="tjdft-3.png" alt="Logo TJDFT" class="h-12 mx-auto mb-8 animate-pulse"
+                 onerror="this.onerror=null; this.src='https://placehold.co/200x50/003366/FFFFFF?text=TJDFT';">
+            <p class="text-lg text-gray-700">Carregando chat...</p>
+        </div>
+
+        <!-- 2. ESTADO DE ERRO (Ex: Demanda não encontrada) -->
+        <div id="error-state" class="hidden text-center p-8 bg-white rounded-xl shadow-lg">
+            <h1 class="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar</h1>
+            <p id="error-message" class="text-gray-700">Não foi possível encontrar a demanda solicitada.</p>
+            <a href="app.html" class="mt-6 inline-block bg-blue-600 text-white font-medium py-2 px-5 rounded-lg hover:bg-blue-700 transition duration-300">
+                Voltar ao Painel
+            </a>
+        </div>
+
+        <!-- 3. ESTADO DO CHAT (Principal) -->
+        <div id="chat-state" class="hidden">
+            
+            <!-- Cabeçalho do Chat -->
+            <header class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                <div class="flex flex-col md:flex-row justify-between md:items-center">
+                    <div>
+                        <a href="app.html" class="text-sm text-blue-600 hover:underline">&larr; Voltar ao Painel</a>
+                        <h1 id="chat-assunto" class="text-3xl font-bold text-gray-900 mt-1">...</h1>
+                    </div>
+                    <div class="mt-4 md:mt-0 text-left md:text-right">
+                        <p class="text-sm text-gray-500">Status da Demanda:</p>
+                        <p id="chat-status" class="text-lg font-bold text-yellow-600">...</p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 space-y-1">
+                    <p><strong>Autor (Requerente):</strong> <span id="chat-autor-email">...</span></p>
+                    <p><strong>Réu (Requerido):</strong> <span id="chat-reu-email">...</span></p>
+                </div>
+            </header>
+
+            <!-- Área de Mensagens -->
+            <div id="chat-messages" class="bg-white rounded-xl shadow-lg p-6 min-h-[400px] max-h-[60vh] overflow-y-auto flex flex-col space-y-4">
+                <!-- Mensagens serão inseridas aqui -->
+                <p id="chat-empty-msg" class="text-gray-500 text-center m-auto">Nenhuma mensagem enviada ainda.</p>
+            </div>
+
+            <!-- Área de Ação (Enviar Mensagem / Controles Admin) -->
+            <div id="chat-actions" class="bg-white p-6 rounded-xl shadow-lg mt-6">
+                <!-- Caixa de Envio para Partes (Autor/Réu) -->
+                <form id="new-message-form" class="hidden space-y-3">
+                    <label for="new-message-text" class="block text-lg font-semibold text-gray-800">Sua manifestação:</label>
+                    <p id="message-form-info" class="text-sm text-gray-600">Sua mensagem será enviada para mediação antes de ser liberada para a outra parte.</p>
+                    <textarea id="new-message-text" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Digite sua mensagem..."></textarea>
+                    <button id="send-message-btn" type="submit" class="w-full bg-blue-700 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-800 transition duration-300 shadow-lg">
+                        Responder
+                    </button>
+                    <p id="message-form-error" class="text-red-600 text-sm"></p>
+                </form>
+
+                <!-- Caixa de Envio para Admin (Mediador) -->
+                <form id="admin-message-form" class="hidden space-y-3">
+                    <label for="admin-message-text" class="block text-lg font-semibold text-gray-800">Mensagem do Mediador:</label>
+                    <p class="text-sm text-gray-600">Sua mensagem será visível para ambas as partes imediatamente.</p>
+                    <textarea id="admin-message-text" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="Digite sua mensagem..."></textarea>
+                    <button id="send-admin-message-btn" type="submit" class="w-full bg-yellow-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-yellow-700 transition duration-300 shadow-lg">
+                        Enviar Mensagem (Admin)
+                    </button>
+                </form>
+
+                <!-- Caixa de Status (Chat Bloqueado) -->
+                <div id="status-box" class="hidden text-center p-4 bg-gray-100 rounded-lg">
+                    <p id="status-box-text" class="text-gray-700 font-medium">...</p>
+                </div>
+
+                <!-- Controles de Finalização (Admin) -->
+                <div id="admin-finish-controls" class="hidden mt-6 pt-6 border-t border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">Finalizar Demanda (Admin)</h3>
+                    <div class="flex flex-col md:flex-row md:space-x-4 space-y-3 md:space-y-0">
+                        <button id="finish-acordo-btn" class="flex-1 bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition duration-300">
+                            Finalizar com Acordo
+                        </button>
+                        <button id="finish-sem-acordo-btn" class="flex-1 bg-red-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-red-700 transition duration-300">
+                            Finalizar sem Acordo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div> <!-- Fim #chat-state -->
+
+    </div> <!-- Fim #app-container -->
+
+    <!-- NOVO: Modal de Edição de Mensagem (Admin) -->
+    <div id="edit-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Editar Mensagem (Mediador)</h3>
+            <p class="text-sm text-gray-600 mb-2">Ajuste o texto da mensagem para garantir um tom colaborativo.</p>
+            <textarea id="edit-modal-text" rows="8" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+            <p id="edit-modal-error" class="text-red-600 text-sm mt-2"></p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-edit-btn" class="py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="save-edit-btn" class="py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Salvar Edição</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Scripts do Firebase -->
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // Importações do REALTIME DATABASE
+        import {
+            getDatabase,
+            ref,
+            set,
+            get,
+            push,
+            onValue,
+            query,
+            orderByChild,
+            equalTo,
+            serverTimestamp,
+            off, 
+            update // Para atualizar dados
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+        // --- INICIALIZAÇÃO E VARIÁVEIS GLOBAIS ---
+        
+        // Configurações do Firebase (as mesmas do app.html)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDq-zz_7BLj0VTK0vXS955tBadC4sj9rFg",
+            authDomain: "audasync.firebaseapp.com",
+            databaseURL: "https://audasync-default-rtdb.firebaseio.com",
+            projectId: "audasync",
+            storageBucket: "audasync.firebasestorage.app",
+            messagingSenderId: "522678342385",
+            appId: "1:522678342385:web:1433bd9cc1aaaa14a40f50",
+            measurementId: "G-B15ZRTTR5T"
+        };
+
+        // Inicializa Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app); 
+        const auth = getAuth(app);
+        
+        // Define um caminho base fixo para os dados
+        const dbBasePath = `artifacts/audasync/public/data`;
+
+        let currentUserId = null;
+        let currentUserEmail = null;
+        let userType = 'parte'; // 'parte' ou 'admin'
+        let demandaId = null;
+        let demandaData = null; // Armazena os dados da demanda
+        
+        // NOVO: Variáveis do Modal de Edição
+        let mensagemParaEditar = { demandaId: null, mensagemId: null };
+
+        // Referências dos Elementos da UI
+        const loadingState = document.getElementById('loading-state');
+        const errorState = document.getElementById('error-state');
+        const errorMessage = document.getElementById('error-message');
+        const chatState = document.getElementById('chat-state');
+
+        const chatAssunto = document.getElementById('chat-assunto');
+        const chatStatus = document.getElementById('chat-status');
+        const chatAutorEmail = document.getElementById('chat-autor-email');
+        const chatReuEmail = document.getElementById('chat-reu-email');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatEmptyMsg = document.getElementById('chat-empty-msg');
+        
+        const chatActions = document.getElementById('chat-actions');
+        const newMessageForm = document.getElementById('new-message-form');
+        const messageFormInfo = document.getElementById('message-form-info');
+        const newMessageText = document.getElementById('new-message-text');
+        const sendMessageBtn = document.getElementById('send-message-btn');
+        const messageFormError = document.getElementById('message-form-error');
+
+        const adminMessageForm = document.getElementById('admin-message-form');
+        const adminMessageText = document.getElementById('admin-message-text');
+        const sendAdminMessageBtn = document.getElementById('send-admin-message-btn');
+
+        const statusBox = document.getElementById('status-box');
+        const statusBoxText = document.getElementById('status-box-text');
+        
+        const adminFinishControls = document.getElementById('admin-finish-controls');
+        const finishAcordoBtn = document.getElementById('finish-acordo-btn');
+        const finishSemAcordoBtn = document.getElementById('finish-sem-acordo-btn');
+        
+        // NOVO: Referências do Modal de Edição
+        const editModal = document.getElementById('edit-modal');
+        const cancelEditBtn = document.getElementById('cancel-edit-btn');
+        const saveEditBtn = document.getElementById('save-edit-btn');
+        const editModalText = document.getElementById('edit-modal-text');
+        const editModalError = document.getElementById('edit-modal-error');
+
+
+        // --- CONTROLE DE ESTADO DA UI ---
+
+        function showState(stateName) {
+            loadingState.classList.toggle('hidden', stateName !== 'loading');
+            errorState.classList.toggle('hidden', stateName !== 'error');
+            chatState.classList.toggle('hidden', stateName !== 'chat');
+        }
+        
+        // Pega o ID da demanda pela URL
+        function getDemandaIdFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('id');
+        }
+        
+        // Retorna o rótulo de status amigável
+        function getStatusLabel(status) {
+            const labels = {
+                "Pendente_Admin_Autor": "Aguardando mediação",
+                "Aguardando_Reu": "Aguardando outra parte",
+                "Pendente_Admin_Reu": "Aguardando mediação",
+                "Aguardando_Autor": "Aguardando sua resposta",
+                "Finalizada_Acordo": "Finalizada (Acordo)",
+                "Finalizada_Sem_Acordo": "Finalizada (Sem Acordo)"
+            };
+            return labels[status] || status;
+        }
+
+        // --- AUTENTICAÇÃO E INICIALIZAÇÃO ---
+
+        showState('loading');
+        demandaId = getDemandaIdFromURL();
+
+        if (!demandaId) {
+            errorMessage.textContent = 'Nenhuma demanda selecionada. Volte ao painel e tente novamente.';
+            showState('error');
+        } else {
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUserId = user.uid;
+                    currentUserEmail = user.email;
+                    // Inicia o carregamento dos dados
+                    loadData();
+                } else {
+                    // Usuário não logado, redireciona para o login (app.html)
+                    window.location.href = 'app.html';
+                }
+            });
+        }
+        
+        async function loadData() {
+            try {
+                // 1. Verifica se é admin (em paralelo)
+                const adminCheckPromise = checkAdminStatus(currentUserId);
+                
+                // 2. Busca os dados da demanda
+                const demandaRef = ref(db, `${dbBasePath}/demandas/${demandaId}`);
+                const demandaSnapshot = await get(demandaRef);
+
+                if (!demandaSnapshot.exists()) {
+                    errorMessage.textContent = 'Demanda não encontrada ou foi removida.';
+                    showState('error');
+                    return;
+                }
+                
+                demandaData = demandaSnapshot.val();
+
+                // 3. Verifica se o usuário tem permissão para ver este chat
+                await adminCheckPromise; // Espera a verificação de admin terminar
+                
+                const isParte = (currentUserId === demandaData.autorId || currentUserId === demandaData.reuId);
+                
+                if (!isParte && !userType === 'admin') {
+                    errorMessage.textContent = 'Você não tem permissão para acessar este chat.';
+                    showState('error');
+                    return;
+                }
+
+                // 4. Se chegou aqui, o usuário tem permissão. Carrega o chat.
+                renderDemandaInfo();
+                
+                // 5. Inicia os listeners em tempo real
+                listenToDemandaUpdates();
+                listenToMensagens();
+                
+                showState('chat');
+                
+            } catch (error) {
+                console.error("Erro ao carregar dados:", error);
+                errorMessage.textContent = 'Ocorreu um erro ao carregar o chat.';
+                showState('error');
+            }
+        }
+        
+        // Função separada para verificar status de Admin
+        async function checkAdminStatus(uid) {
+            const adminRef = ref(db, `${dbBasePath}/admins/${uid}`);
+            try {
+                const snapshot = await get(adminRef);
+                if (snapshot.exists()) {
+                    userType = 'admin'; // Define o tipo de usuário global
+                }
+            } catch (error) {
+                console.error("Erro ao verificar status de admin:", error);
+            }
+        }
+
+
+        // --- RENDERIZAÇÃO E LISTENERS ---
+
+        // Preenche o cabeçalho
+        function renderDemandaInfo() {
+            chatAssunto.textContent = demandaData.assunto;
+            chatStatus.textContent = getStatusLabel(demandaData.status);
+            chatAutorEmail.textContent = demandaData.autorEmail;
+            chatReuEmail.textContent = demandaData.reuEmail;
+
+            // Define a cor do status
+            const statusClass = demandaData.status.startsWith('Finalizada') ? 'text-gray-600' : 'text-yellow-600';
+            chatStatus.className = `text-lg font-bold ${statusClass}`;
+        }
+        
+        // Ouve mudanças no status da demanda (ex: se o admin finalizar)
+        function listenToDemandaUpdates() {
+            const demandaRef = ref(db, `${dbBasePath}/demandas/${demandaId}`);
+            onValue(demandaRef, (snapshot) => {
+                if(snapshot.exists()) {
+                    demandaData = snapshot.val();
+                    renderDemandaInfo(); // Atualiza o cabeçalho
+                    updateChatControls(); // Atualiza os botões e caixas de texto
+                } else {
+                    // Demanda foi apagada
+                    errorMessage.textContent = 'Esta demanda foi removida pelo mediador.';
+                    showState('error');
+                }
+            });
+        }
+        
+        // Ouve por novas mensagens
+        function listenToMensagens() {
+            const mensagensRef = query(ref(db, `${dbBasePath}/demandas/${demandaId}/mensagens`), orderByChild('timestamp'));
+            
+            onValue(mensagensRef, (snapshot) => {
+                chatMessages.innerHTML = ''; // Limpa o chat
+                if (!snapshot.exists()) {
+                    chatEmptyMsg.classList.remove('hidden');
+                    return;
+                }
+                
+                chatEmptyMsg.classList.add('hidden');
+                
+                snapshot.forEach((child) => {
+                    const msgId = child.key;
+                    const msgData = child.val();
+                    renderMensagem(msgId, msgData);
+                });
+                
+                // Rola para a última mensagem
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+        }
+        
+        // Renderiza um card de mensagem
+        function renderMensagem(msgId, msg) {
+            // Regra de visibilidade:
+            // 1. Admin vê tudo.
+            // 2. Partes (autor/reu) só veem mensagens com status 'aprovada' ou as suas próprias.
+            const isMyMessage = (msg.remetenteId === currentUserId);
+            
+            if (userType !== 'admin' && msg.status !== 'aprovada' && !isMyMessage) {
+                return; // Não renderiza a mensagem para a parte
+            }
+
+            const card = document.createElement('div');
+            let dataFormatada = msg.timestamp ? new Date(msg.timestamp).toLocaleString('pt-BR') : '...';
+            
+            let header, body, footer = '';
+
+            // Define o estilo (Minha, Outra Parte, Admin)
+            if (msg.remetenteTipo === 'admin') {
+                // MENSAGEM DO ADMIN (Mediador)
+                card.className = 'w-full max-w-xl mx-auto';
+                header = `
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-yellow-700">MEDIADOR</span>
+                        <span class="text-xs text-gray-500">${dataFormatada}</span>
+                    </div>`;
+                body = `<div class="mt-2 p-4 bg-yellow-100 border border-yellow-200 rounded-lg text-gray-800">${msg.texto}</div>`;
+            } else if (isMyMessage) {
+                // MINHA MENSAGEM (Autor ou Réu)
+                card.className = 'w-full max-w-xl ml-auto';
+                header = `
+                    <div class="flex items-center space-x-2 justify-end">
+                        <span class="text-xs text-gray-500">${dataFormatada}</span>
+                        <span class="font-bold text-blue-700">Eu (${msg.remetenteEmail})</span>
+                    </div>`;
+                body = `<div class="mt-2 p-4 bg-blue-100 rounded-lg text-gray-800">${msg.texto}</div>`;
+            } else {
+                // MENSAGEM DA OUTRA PARTE (Autor ou Réu)
+                card.className = 'w-full max-w-xl mr-auto';
+                header = `
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-gray-700">Outra Parte (${msg.remetenteEmail})</span>
+                        <span class="text-xs text-gray-500">${dataFormatada}</span>
+                    </div>`;
+                body = `<div class="mt-2 p-4 bg-gray-100 rounded-lg text-gray-800">${msg.texto}</div>`;
+            }
+
+            // Lógica do Footer (Status e Ações do Admin)
+            if (msg.status === 'pendente' || msg.status === 'editada_pelo_admin') {
+                let statusLabel = msg.status === 'pendente' 
+                    ? 'Pendente de aprovação' 
+                    : 'Editada (aguardando aprovação)';
+                    
+                if (userType === 'admin') {
+                    // Visão do Admin: Botões de Ação
+                    footer = `
+                        <div class="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex flex-col md:flex-row justify-between md:items-center space-y-2 md:space-y-0">
+                            <span class="text-sm font-medium text-yellow-700">Aguardando sua mediação</span>
+                            <div class="flex space-x-2">
+                                <button class="edit-msg-btn text-sm py-1 px-3 bg-orange-500 text-white rounded-md hover:bg-orange-600" data-msg-id="${msgId}">Editar</button>
+                                <button class="approve-msg-btn text-sm py-1 px-3 bg-green-500 text-white rounded-md hover:bg-green-600" data-msg-id="${msgId}">Aprovar</button>
+                            </div>
+                        </div>`;
+                } else if (isMyMessage) {
+                    // Visão da Parte (Dono da msg): Aviso de pendência
+                    footer = `<div class="mt-2 p-2 bg-gray-50 rounded-lg text-sm text-center text-gray-500 italic">${statusLabel}</div>`;
+                }
+            } else if (msg.status === 'editada_pelo_admin' && isMyMessage) {
+                 footer = `<div class="mt-2 p-2 bg-gray-50 rounded-lg text-sm text-center text-gray-500 italic">Editada pelo mediador (aguardando aprovação)</div>`;
+            } else if (msg.status === 'aprovada' && msg.textoOriginal) {
+                // Mensagem foi editada E aprovada
+                 footer = `<div class="mt-2 p-2 bg-gray-50 rounded-lg text-sm text-center text-gray-500 italic">Mensagem editada pelo mediador.</div>`;
+            }
+
+            card.innerHTML = header + body + footer;
+            chatMessages.appendChild(card);
+        }
+        
+        // Atualiza quais caixas de texto e botões estão visíveis
+        function updateChatControls() {
+            // Esconde tudo por padrão
+            newMessageForm.classList.add('hidden');
+            adminMessageForm.classList.add('hidden');
+            adminFinishControls.classList.add('hidden');
+            statusBox.classList.add('hidden');
+            
+            const status = demandaData.status;
+
+            // Se a demanda estiver finalizada
+            if (status.startsWith('Finalizada')) {
+                statusBoxText.textContent = `Esta demanda foi finalizada (${status.split('_')[1]}). O chat está bloqueado.`;
+                statusBox.classList.remove('hidden');
+                return;
+            }
+
+            // Se for Admin
+            if (userType === 'admin') {
+                adminMessageForm.classList.remove('hidden');
+                adminFinishControls.classList.remove('hidden');
+                // O admin pode ou não ver o formulário da parte, mas não o usa.
+                // Pode também ver o status box se o chat estiver bloqueado para as partes.
+            }
+
+            // Lógica para as Partes
+            const isAutor = (currentUserId === demandaData.autorId);
+            const isReu = (currentUserId === demandaData.reuId);
+
+            if (status === 'Aguardando_Autor' && isAutor) {
+                newMessageForm.classList.remove('hidden');
+                messageFormInfo.textContent = "É sua vez de responder. Sua mensagem será enviada para mediação.";
+            } else if (status === 'Aguardando_Reu' && isReu) {
+                newMessageForm.classList.remove('hidden');
+                messageFormInfo.textContent = "É sua vez de responder. Sua mensagem será enviada para mediação.";
+            } else if (status === 'Pendente_Admin_Autor' || status === 'Pendente_Admin_Reu') {
+                statusBoxText.textContent = "Aguardando mediação. O chat está temporariamente bloqueado.";
+                statusBox.classList.remove('hidden');
+            } else if (status === 'Aguardando_Autor' && isReu) {
+                statusBoxText.textContent = "Aguardando a manifestação da outra parte (Autor).";
+                statusBox.classList.remove('hidden');
+            } else if (status === 'Aguardando_Reu' && isAutor) {
+                statusBoxText.textContent = "Aguardando a manifestação da outra parte (Réu).";
+                statusBox.classList.remove('hidden');
+            }
+        }
+
+
+        // --- AÇÕES DO CHAT (Envio e Admin) ---
+
+        // Delegação de eventos para botões de Aprovar e Editar
+        chatMessages.addEventListener('click', async (e) => {
+            const approveBtn = e.target.closest('.approve-msg-btn');
+            const editBtn = e.target.closest('.edit-msg-btn');
+
+            if (approveBtn) {
+                const msgId = approveBtn.getAttribute('data-msg-id');
+                await approveMensagem(msgId);
+            }
+            
+            if (editBtn) {
+                const msgId = editBtn.getAttribute('data-msg-id');
+                // Busca o texto atual da mensagem para preencher o modal
+                const msgRef = ref(db, `${dbBasePath}/demandas/${demandaId}/mensagens/${msgId}`);
+                const snapshot = await get(msgRef);
+                if (snapshot.exists()) {
+                    mensagemParaEditar = { demandaId: demandaId, mensagemId: msgId };
+                    editModalText.value = snapshot.val().texto;
+                    editModalError.textContent = '';
+                    editModal.classList.remove('hidden');
+                }
+            }
+        });
+
+        // NOVO: Ações do Modal de Edição
+        cancelEditBtn.addEventListener('click', () => {
+            editModal.classList.add('hidden');
+            mensagemParaEditar = { demandaId: null, mensagemId: null };
+        });
+
+        saveEditBtn.addEventListener('click', async () => {
+            const newText = editModalText.value;
+            const { demandaId: dId, mensagemId: mId } = mensagemParaEditar;
+            
+            if (!newText || !dId || !mId) {
+                editModalError.textContent = "O texto não pode estar vazio.";
+                return;
+            }
+            
+            saveEditBtn.disabled = true;
+            saveEditBtn.textContent = "Salvando...";
+
+            try {
+                const msgRef = ref(db, `${dbBasePath}/demandas/${dId}/mensagens/${mId}`);
+                // Pega o texto antigo para salvar como 'textoOriginal'
+                const snapshot = await get(msgRef);
+                const oldText = snapshot.val().texto;
+                
+                await update(msgRef, {
+                    texto: newText,
+                    textoOriginal: oldText, // Salva o texto antigo
+                    status: "editada_pelo_admin" // Novo status
+                });
+                
+                editModal.classList.add('hidden');
+            } catch (error) {
+                console.error("Erro ao salvar edição:", error);
+                editModalError.textContent = "Erro ao salvar: " + error.message;
+            } finally {
+                saveEditBtn.disabled = false;
+                saveEditBtn.textContent = "Salvar Edição";
+                mensagemParaEditar = { demandaId: null, mensagemId: null };
+            }
+        });
+
+
+        // Admin: Aprova uma mensagem pendente
+        async function approveMensagem(msgId) {
+            const msgRef = ref(db, `${dbBasePath}/demandas/${demandaId}/mensagens/${msgId}`);
+            
+            // Descobre quem é a próxima parte a falar
+            const msgSnapshot = await get(msgRef);
+            const remetenteId = msgSnapshot.val().remetenteId;
+            
+            let proximoStatus = "";
+            if (remetenteId === demandaData.autorId) {
+                proximoStatus = "Aguardando_Reu"; // Autor falou, agora é a vez do Réu
+            } else {
+                proximoStatus = "Aguardando_Autor"; // Réu falou, agora é a vez do Autor
+            }
+
+            // Atualiza a mensagem E o status da demanda
+            try {
+                await update(msgRef, {
+                    status: 'aprovada'
+                });
+                
+                const demandaRef = ref(db, `${dbBasePath}/demandas/${demandaId}`);
+                await update(demandaRef, {
+                    status: proximoStatus
+                });
+                
+                // Os listeners 'onValue' vão cuidar de atualizar a UI
+                
+            } catch (error) {
+                console.error("Erro ao aprovar mensagem:", error);
+            }
+        }
+        
+        // Parte (Autor/Réu) envia uma nova mensagem
+        newMessageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const texto = newMessageText.value;
+            if (texto.trim() === '') return;
+            
+            sendMessageBtn.disabled = true;
+            sendMessageBtn.textContent = "Enviando...";
+            messageFormError.textContent = '';
+            
+            const novaMensagem = {
+                texto: texto,
+                remetenteId: currentUserId,
+                remetenteEmail: currentUserEmail,
+                remetenteTipo: "parte",
+                status: "pendente", // Sempre começa pendente
+                timestamp: serverTimestamp()
+            };
+            
+            try {
+                // Salva a mensagem
+                const mensagensRef = ref(db, `${dbBasePath}/demandas/${demandaId}/mensagens`);
+                await push(mensagensRef, novaMensagem);
+                
+                // Atualiza o status da demanda (quem enviou fica pendente de admin)
+                const novoStatus = (currentUserId === demandaData.autorId) ? "Pendente_Admin_Autor" : "Pendente_Admin_Reu";
+                const demandaRef = ref(db, `${dbBasePath}/demandas/${demandaId}`);
+                await update(demandaRef, {
+                    status: novoStatus
+                });
+
+                newMessageText.value = ''; // Limpa o campo
+                // O listener 'onValue' vai atualizar a UI e esconder o formulário
+                
+            } catch (error) {
+                console.error("Erro ao enviar mensagem:", error);
+                messageFormError.textContent = "Erro ao enviar: " + error.message;
+            } finally {
+                sendMessageBtn.disabled = false;
+                sendMessageBtn.textContent = "Enviar para Mediação";
+            }
+        });
+
+        // Admin envia uma mensagem
+        adminMessageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const texto = adminMessageText.value;
+            if (texto.trim() === '') return;
+            
+            sendAdminMessageBtn.disabled = true;
+            sendAdminMessageBtn.textContent = "Enviando...";
+            
+            const novaMensagem = {
+                texto: texto,
+                remetenteId: currentUserId,
+                remetenteEmail: currentUserEmail,
+                remetenteTipo: "admin",
+                status: "aprovada", // Mensagem de admin é sempre aprovada
+                timestamp: serverTimestamp()
+            };
+            
+            try {
+                const mensagensRef = ref(db, `${dbBasePath}/demandas/${demandaId}/mensagens`);
+                await push(mensagensRef, novaMensagem);
+                adminMessageText.value = '';
+            } catch (error) {
+                console.error("Erro ao enviar msg admin:", error);
+            } finally {
+                sendAdminMessageBtn.disabled = false;
+                sendAdminMessageBtn.textContent = "Enviar Mensagem (Admin)";
+            }
+        });
+
+        // Admin finaliza a demanda
+        finishAcordoBtn.addEventListener('click', () => finalizarDemanda('Finalizada_Acordo'));
+        finishSemAcordoBtn.addEventListener('click', () => finalizarDemanda('Finalizada_Sem_Acordo'));
+        
+        async function finalizarDemanda(statusFinal) {
+            // Idealmente, pediríamos confirmação, mas por simplicidade vamos direto
+            const demandaRef = ref(db, `${dbBasePath}/demandas/${demandaId}`);
+            try {
+                await update(demandaRef, {
+                    status: statusFinal
+                });
+                // O listener 'onValue' vai atualizar a UI e bloquear os controles
+            } catch (error) {
+                console.error("Erro ao finalizar demanda:", error);
+            }
+        }
+
+    </script>
+</body>
+</html>
+

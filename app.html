@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plataforma de Conciliação - TJDFT</title>
     <!-- Carrega o Tailwind CSS para estilização -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -118,14 +118,22 @@
                     </button>
                 </div>
             </header>
+            
+            <!-- NOVO: Painel Administrativo -->
+            <div id="admin-panel" class="hidden w-full bg-yellow-50 border border-yellow-300 p-6 rounded-xl shadow-lg mb-8">
+                <h2 class="text-xl font-bold text-yellow-900 mb-5">Painel do Mediador (Todas as Demandas)</h2>
+                <div id="admin-demandas-list" class="space-y-4 max-h-96 overflow-y-auto">
+                    <p id="no-admin-demandas-msg" class="text-gray-500">Nenhuma demanda no sistema.</p>
+                </div>
+            </div>
 
             <!-- Corpo do Painel (2 Colunas) -->
-            <!-- **** CORREÇÃO AQUI: Adicionado 'md:items-start' **** -->
+            <!-- Correção de Layout: 'md:items-start' alinha as colunas no topo -->
             <div class="flex flex-col md:flex-row md:space-x-8 md:items-start">
 
                 <!-- Coluna 1: Minhas Demandas (Recebidas e Iniciadas) -->
                 <div class="w-full md:w-1/2 bg-white p-6 rounded-xl shadow-lg">
-                    <h2 class="text-xl font-bold text-gray-900 mb-5">Minhas Demandas</h2>
+                    <h2 class="text-xl font-bold text-gray-900 mb-5">Minhas Demandas Pessoais</h2>
                     <div id="minhas-demandas-list" class="space-y-4 max-h-96 overflow-y-auto">
                         <!-- Demandas serão inseridas aqui pelo JS -->
                         <p id="no-demandas-msg" class="text-gray-500">Você não possui demandas ativas.</p>
@@ -141,7 +149,7 @@
                         <span id="new-demanda-icon" class="text-2xl font-bold text-gray-600 group-hover:text-blue-700">[+]</span>
                     </div>
                     
-                    <!-- Conteúdo Colapsável (usa style="display: none;" aplicado via JS diff) -->
+                    <!-- Conteúdo Colapsável (começa escondido) -->
                     <div id="new-demanda-content" class="px-6 pb-6" style="display: none;">
                         <form id="new-demanda-form" class="space-y-4">
                             <div>
@@ -153,8 +161,8 @@
                                 <input type="text" id="new-demanda-assunto" required placeholder="Ex: Dívida de Aluguel" class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                             <div>
-                                <label for="new-demanda-descricao" class="block text-sm font-medium text-gray-700 mb-2">Descrição Inicial</label>
-                                <textarea id="new-demanda-descricao" rows="4" required placeholder="Descreva brevemente o motivo da conciliação." class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                                <label for="new-demanda-descricao" class="block text-sm font-medium text-gray-700 mb-2">Sua Manifestação Inicial</label>
+                                <textarea id="new-demanda-descricao" rows="4" required placeholder="Descreva sua solicitação. Esta será a primeira mensagem da mediação." class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                             </div>
                             <p id="new-demanda-message" class="text-sm"></p>
                             <button id="new-demanda-button" type="submit" class="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition duration-300 shadow-lg">
@@ -168,6 +176,18 @@
         </div>
 
     </div> <!-- Fim #app-container -->
+
+    <!-- NOVO: Modal de Confirmação de Exclusão -->
+    <div id="delete-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+            <h3 class="text-lg font-bold text-gray-900">Confirmar Exclusão</h3>
+            <p class="text-sm text-gray-600 mt-2">Você tem certeza que quer apagar esta demanda? Esta ação é irreversível e removerá todo o histórico de chat.</p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="cancel-delete-btn" class="py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="confirm-delete-btn" class="py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700">Apagar</button>
+            </div>
+        </div>
+    </div>
 
 
     <!-- Scripts do Firebase -->
@@ -193,7 +213,8 @@
             orderByChild,
             equalTo,
             serverTimestamp,
-            off // Para desligar os listeners
+            off, // Para desligar os listeners
+            remove // NOVO: Para apagar dados
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
 
@@ -221,12 +242,15 @@
 
         let currentUserId = null;
         let currentUserEmail = null;
+        let isUserAdmin = false; // NOVO: Flag de Admin
         
         // Variáveis para os listeners e caches
         let unsubDemandasRecebidas = null;
         let unsubDemandasIniciadas = null;
+        let unsubAdminDemandas = null; // NOVO: Listener Admin
         let demandasRecebidasCache = {};
         let demandasIniciadasCache = {};
+        let demandaParaApagar = null; // NOVO: Armazena o ID da demanda a ser apagada
 
         // Referências dos Elementos da UI
         const loadingState = document.getElementById('loading-state');
@@ -247,6 +271,16 @@
 
         const minhasDemandasList = document.getElementById('minhas-demandas-list');
         const noDemandasMsg = document.getElementById('no-demandas-msg');
+
+        // NOVO: Referências do Painel Admin
+        const adminPanel = document.getElementById('admin-panel');
+        const adminDemandasList = document.getElementById('admin-demandas-list');
+        const noAdminDemandasMsg = document.getElementById('no-admin-demandas-msg');
+
+        // NOVO: Referências do Modal
+        const deleteModal = document.getElementById('delete-modal');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 
         const newDemandaForm = document.getElementById('new-demanda-form');
         const newDemandaEmail = document.getElementById('new-demanda-email');
@@ -296,7 +330,7 @@
         showState('loading');
         
         // onAuthStateChanged é o principal controlador de estado
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             // Limpa listeners antigos ANTES de qualquer outra coisa
             if (unsubDemandasRecebidas) {
                 off(unsubDemandasRecebidas.query, 'value', unsubDemandasRecebidas.callback);
@@ -306,20 +340,50 @@
                 off(unsubDemandasIniciadas.query, 'value', unsubDemandasIniciadas.callback);
                 unsubDemandasIniciadas = null;
             }
+            // NOVO: Limpa listener Admin
+            if (unsubAdminDemandas) {
+                off(unsubAdminDemandas.query, 'value', unsubAdminDemandas.callback);
+                unsubAdminDemandas = null;
+            }
             // Limpa os caches
             demandasRecebidasCache = {};
             demandasIniciadasCache = {};
+            // NOVO: Reseta flag e painel admin
+            isUserAdmin = false;
+            adminPanel.classList.add('hidden');
+            adminDemandasList.innerHTML = '';
+
 
             // Usuário está logado
             if (user) {
                 currentUserId = user.uid;
                 currentUserEmail = user.email;
                 
+                // NOVO: Verifica se o usuário é admin
+                await checkAdminStatus(user.uid);
+                
                 // Atualiza o cabeçalho com o EMAIL
                 userEmailDisplay.textContent = currentUserEmail;
                 
-                // Carrega os dados do usuário
+                // Carrega os dados pessoais do usuário (admin ou não)
                 loadMinhasDemandas(currentUserId);
+                
+                // NOVO: Se for admin, mostra painel e carrega todas as demandas
+                if (isUserAdmin) {
+                    adminPanel.classList.remove('hidden');
+                    loadAllDemandasForAdmin();
+                    
+                    // NOVO: Configura o listener DELEGADO para os botões de apagar no painel admin
+                    adminDemandasList.addEventListener('click', (e) => {
+                        const deleteButton = e.target.closest('.delete-demanda-btn');
+                        if (deleteButton) {
+                            e.preventDefault();
+                            const id = deleteButton.getAttribute('data-demanda-id');
+                            demandaParaApagar = id; // Armazena o ID
+                            deleteModal.classList.remove('hidden'); // Mostra o modal
+                        }
+                    });
+                }
                 
                 showState('dashboard');
             } 
@@ -420,6 +484,31 @@
             }
         }
 
+        // NOVO: Função para verificar status de Admin
+        async function checkAdminStatus(uid) {
+            // Reseta a flag
+            isUserAdmin = false; 
+            if (!uid) return;
+            
+            const adminRef = ref(db, `${dbBasePath}/admins/${uid}`);
+            try {
+                const snapshot = await get(adminRef);
+                isUserAdmin = snapshot.exists(); // Define a flag global
+            } catch (error) {
+                console.error("Erro ao verificar status de admin:", error);
+                isUserAdmin = false;
+            }
+        }
+
+        // NOVO: Função para apagar uma demanda
+        async function deleteDemanda(demandaId) {
+            const demandaRef = ref(db, `${dbBasePath}/demandas/${demandaId}`);
+            await remove(demandaRef);
+            // O listener 'onValue' em 'loadAllDemandasForAdmin'
+            // vai automaticamente atualizar a lista.
+        }
+
+
         // --- LÓGICA DO PAINEL COLAPSÁVEL ---
         // Lógica atualizada para usar style.display
         toggleNewDemanda.addEventListener('click', () => {
@@ -433,9 +522,33 @@
             }
         });
 
+        // --- LÓGICA DO MODAL DE EXCLUSÃO ---
+        cancelDeleteBtn.addEventListener('click', () => {
+            deleteModal.classList.add('hidden');
+            demandaParaApagar = null;
+        });
+
+        confirmDeleteBtn.addEventListener('click', async () => {
+            if (demandaParaApagar) {
+                confirmDeleteBtn.disabled = true;
+                confirmDeleteBtn.textContent = "Apagando...";
+                try {
+                    await deleteDemanda(demandaParaApagar);
+                } catch (error) {
+                    console.error("Erro ao apagar demanda:", error);
+                } finally {
+                    deleteModal.classList.add('hidden');
+                    demandaParaApagar = null;
+                    confirmDeleteBtn.disabled = false;
+                    confirmDeleteBtn.textContent = "Apagar";
+                }
+            }
+        });
+
 
         // --- REALTIME DATABASE (Lógica do Painel) ---
 
+        // Carrega demandas ONDE O USUÁRIO É PARTE (Autor ou Réu)
         function loadMinhasDemandas(userId) {
             const demandasRef = ref(db, `${dbBasePath}/demandas`);
 
@@ -462,6 +575,7 @@
             unsubDemandasIniciadas = { query: qIniciadas, callback: callbackIniciadas };
         }
 
+        // Renderiza a lista de demandas pessoais
         function renderListaUnificada() {
             if(!minhasDemandasList) return; // Proteção caso o elemento não exista
             
@@ -486,6 +600,104 @@
             }
         }
 
+        // NOVO: Carrega TODAS as demandas para o Admin
+        function loadAllDemandasForAdmin() {
+            const demandasRef = ref(db, `${dbBasePath}/demandas`);
+            // Ordena por 'createdAt' para pegar as mais recentes
+            const qAdmin = query(demandasRef, orderByChild("createdAt")); 
+            
+            const callbackAdmin = onValue(qAdmin, (snapshot) => {
+                if (snapshot.exists()) {
+                    noAdminDemandasMsg.classList.add('hidden');
+                    adminDemandasList.innerHTML = '';
+                    
+                    let allDemandas = [];
+                    snapshot.forEach((child) => {
+                        allDemandas.push({ id: child.key, ...child.val() });
+                    });
+                    
+                    // Reverte o array para mostrar as mais novas primeiro
+                    allDemandas.reverse().forEach(demanda => {
+                        renderAdminDemandaCard(demanda);
+                    });
+                    
+                } else {
+                    noAdminDemandasMsg.classList.remove('hidden');
+                    adminDemandasList.innerHTML = '';
+                }
+            }, (error) => {
+                console.error("Erro ao buscar TODAS as demandas (Admin):", error);
+                adminDemandasList.innerHTML = '<p class="text-red-500">Erro ao carregar demandas. Verifique o índice "createdAt" nas Regras do RTDB.</p>';
+            });
+            unsubAdminDemandas = { query: qAdmin, callback: callbackAdmin };
+        }
+
+        // NOVO: Renderiza o card para o painel de Admin
+        function renderAdminDemandaCard(demanda) {
+            const card = document.createElement('div');
+            card.className = 'border border-gray-300 bg-white p-3 rounded-lg flex flex-col md:flex-row justify-between md:items-center space-y-2 md:space-y-0';
+            
+            const chatUrl = `chat.html?id=${demanda.id}`;
+            const statusLabel = getStatusLabel(demanda.status);
+            const statusClass = getStatusClass(demanda.status);
+            let dataFormatada = demanda.createdAt ? new Date(demanda.createdAt).toLocaleString('pt-BR') : '...';
+
+            card.innerHTML = `
+                <div class="flex-1">
+                    <h4 class="font-bold text-gray-800">${demanda.assunto}</h4>
+                    <p class="text-sm text-gray-600">
+                        <span class="font-medium">Autor:</span> ${demanda.autorEmail}
+                    </p>
+                    <p class="text-sm text-gray-600">
+                        <span class="font-medium">Réu:</span> ${demanda.reuEmail}
+                    </p>
+                    <div class="flex items-center space-x-4 mt-1">
+                        <p class="text-sm">Status: <span class="font-medium ${statusClass}">${statusLabel}</span></p>
+                        <p class="text-xs text-gray-400">Criada em: ${dataFormatada}</p>
+                    </div>
+                </div>
+                <!-- NOVO: Wrapper para os botões -->
+                <div class="flex flex-col md:flex-row md:items-center md:space-x-2 space-y-2 md:space-y-0 w-full md:w-auto">
+                    <a href="${chatUrl}" class="w-full md:w-auto text-center bg-gray-700 text-white text-sm font-medium py-2 px-4 rounded-lg hover:bg-gray-800 transition duration-300">
+                        Gerenciar Chat
+                    </a>
+                    <!-- NOVO: Botão de Apagar com data-demanda-id -->
+                    <button data-demanda-id="${demanda.id}" class="delete-demanda-btn w-full md:w-auto text-center bg-red-600 text-white text-sm font-medium py-2 px-4 rounded-lg hover:bg-red-700 transition duration-300">
+                        Apagar
+                    </button>
+                </div>
+            `;
+            adminDemandasList.appendChild(card);
+            // Nenhum listener de clique é anexado aqui; usamos delegação de eventos
+        }
+
+
+        // Retorna o rótulo de status amigável
+        function getStatusLabel(status) {
+            const labels = {
+                "Pendente_Admin_Autor": "Aguardando mediação",
+                "Aguardando_Reu": "Aguardando outra parte",
+                "Pendente_Admin_Reu": "Aguardando mediação",
+                "Aguardando_Autor": "Aguardando sua resposta",
+                "Finalizada_Acordo": "Finalizada (Acordo)",
+                "Finalizada_Sem_Acordo": "Finalizada (Sem Acordo)"
+            };
+            return labels[status] || status;
+        }
+
+        // Retorna a classe de cor para o status
+        function getStatusClass(status) {
+            const classes = {
+                "Pendente_Admin_Autor": "text-yellow-600",
+                "Aguardando_Reu": "text-blue-600",
+                "Pendente_Admin_Reu": "text-yellow-600",
+                "Aguardando_Autor": "text-green-600", // Destaca que é sua vez
+                "Finalizada_Acordo": "text-gray-700",
+                "Finalizada_Sem_Acordo": "text-gray-700"
+            };
+            return classes[status] || 'text-gray-500';
+        }
+
         function renderDemandaCard(demanda, demandaId) {
             const card = document.createElement('div');
             card.className = 'border border-gray-200 p-4 rounded-lg shadow-sm';
@@ -501,6 +713,30 @@
             if (demanda.createdAt) {
                 dataFormatada = new Date(demanda.createdAt).toLocaleString('pt-BR');
             }
+            
+            // Ajusta o status "Aguardando_Autor" para ser "Sua vez" se eu for o autor
+            let statusLabel = getStatusLabel(demanda.status);
+            if (demanda.status === 'Aguardando_Autor' && !isAutor) {
+                statusLabel = "Aguardando outra parte"; // Se eu sou o réu, ainda estou aguardando o autor
+            }
+            if (demanda.status === 'Aguardando_Reu' && isAutor) {
+                statusLabel = "Aguardando outra parte"; // Se eu sou o autor, estou aguardando o réu
+            }
+            if (demanda.status === 'Aguardando_Reu' && !isAutor) {
+                statusLabel = "Aguardando sua resposta"; // Se eu sou o réu, é minha vez
+            }
+
+            let statusClass = getStatusClass(demanda.status);
+             if (demanda.status === 'Aguardando_Autor' && !isAutor) {
+                statusClass = "text-blue-600";
+            }
+             if (demanda.status === 'Aguardando_Reu' && isAutor) {
+                statusClass = "text-blue-600";
+            }
+            if (demanda.status === 'Aguardando_Reu' && !isAutor) {
+                statusClass = "text-green-600";
+            }
+
 
             card.innerHTML = `
                 <div class="flex justify-between items-start">
@@ -511,8 +747,8 @@
                         
                         <div class="flex items-center space-x-3 mt-2">
                              <p class="text-sm text-gray-500">Status: 
-                                <span class="font-medium ${demanda.status === 'Aberta' ? 'text-yellow-600' : 'text-green-600'}">
-                                    ${demanda.status}
+                                <span class="font-medium ${statusClass}">
+                                    ${statusLabel}
                                 </span>
                             </p>
                             <span class="text-xs font-medium px-2 py-0.5 rounded-full ${papelClasse}">
@@ -528,13 +764,13 @@
             minhasDemandasList.appendChild(card);
         }
 
-        // Event Listener de Criar Nova Demanda
+        // Event Listener de Criar Nova Demanda (ATUALIZADO)
         newDemandaForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const emailReu = newDemandaEmail.value;
             const assunto = newDemandaAssunto.value;
-            const descricao = newDemandaDescricao.value;
+            const descricao = newDemandaDescricao.value; // Esta é a "primeira mensagem"
 
             if (emailReu === currentUserEmail) {
                 newDemandaMessage.textContent = 'Você não pode abrir uma demanda contra si mesmo.';
@@ -561,7 +797,8 @@
 
                 // Passo 2: Criar o documento da demanda
                 const demandasRef = ref(db, `${dbBasePath}/demandas`);
-                const newDemandaRef = push(demandasRef); 
+                const newDemandaRef = push(demandasRef); // Gera uma nova chave
+                const demandaId = newDemandaRef.key; // Pega a chave gerada
                 
                 const novaDemanda = {
                     autorId: currentUserId,
@@ -569,12 +806,26 @@
                     reuId: reuId,
                     reuEmail: emailReu,
                     assunto: assunto,
-                    descricaoInicial: descricao,
-                    status: "Aberta",
+                    descricaoInicial: descricao, // Mantemos a descrição para referência
+                    status: "Pendente_Admin_Autor", // NOVO STATUS INICIAL
                     createdAt: serverTimestamp() 
                 };
 
-                await set(newDemandaRef, novaDemanda);
+                // Passo 3: Criar a primeira mensagem (com a descrição)
+                const primeiraMensagem = {
+                    texto: descricao,
+                    remetenteId: currentUserId,
+                    remetenteEmail: currentUserEmail,
+                    remetenteTipo: "parte",
+                    status: "pendente", // Começa pendente de aprovação
+                    timestamp: serverTimestamp()
+                };
+
+                // Passo 4: Salvar a demanda E a primeira mensagem
+                await set(newDemandaRef, novaDemanda); // Salva a demanda
+                
+                const mensagensRef = ref(db, `${dbBasePath}/demandas/${demandaId}/mensagens`);
+                await push(mensagensRef, primeiraMensagem); // Salva a primeira mensagem
                 
                 newDemandaMessage.textContent = 'Demanda aberta com sucesso!';
                 newDemandaMessage.className = 'text-green-600 text-sm';
